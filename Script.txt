@@ -1,0 +1,302 @@
+const SS = SpreadsheetApp.getActiveSpreadsheet();
+
+function criarMenu() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('Certificados')
+    .addItem('📩 Enviar Certificados', 'confirmEmail')
+    .addToUi();
+}
+
+function getSheetById(id) {
+  var sheets = SpreadsheetApp.getActive().getSheets();
+  for (var i in sheets) {
+    if (sheets[i].getSheetId() == id) return sheets[i];
+  }
+}
+
+const pagina1 = getSheetById(7.33901958E8); 
+const pagina2 = getSheetById(5.91734693E8); 
+
+function removerLinhasRepetidas() {
+  const rangeDados = pagina1.getDataRange();  Obtém o intervalo completo
+  const dados1 = rangeDados.getValues();  Obtém os dados como matriz
+
+  if (dados1.length = 1) {
+    Logger.log(A planilha está vazia ou só tem o cabeçalho.);
+    return;
+  }
+
+  const primlinha = dados1[0];  Preserva a primeira linha como cabeçalho
+  const linhasUnicas = [primlinha];  Começa com o cabeçalho
+  const setLinhas = new Set();  Armazena combinações únicas das duas primeiras colunas
+
+   Verifica duplicatas a partir da segunda linha, considerando apenas as duas primeiras colunas
+  for (let i = 1; i  dados1.length; i++) {
+    const chaveLinha = JSON.stringify(dados1[i].slice(0, 2));  Combinação das duas primeiras colunas
+    if (!setLinhas.has(chaveLinha)) {
+      setLinhas.add(chaveLinha);
+      linhasUnicas.push(dados1[i]);  Adiciona linha única completa
+    }
+  }
+
+   Atualiza apenas os dados únicos, preservando formatação do cabeçalho
+  pagina1.getRange(2, 1, pagina1.getLastRow() - 1, pagina1.getLastColumn()).clear();  Limpa dados abaixo do cabeçalho
+  pagina1.getRange(1, 1, linhasUnicas.length, linhasUnicas[0].length).setValues(linhasUnicas);  Escreve os dados únicos
+}
+
+const cabecalho = pagina1.getDataRange().getValues();
+const variaveis = pagina2.getDataRange().getValues();
+const dados = cabecalho.slice(1);
+
+
+const lista1 = dados.map(usuario = usuario[0]);
+const lista2 = dados.map(usuario = usuario[1]);
+const status = dados.map(usuario = usuario[2]);
+
+function identificarListas(nameList, emailList) {
+  function primeiroNaoVazio(lista) {
+    return lista.find(item = item.trim() !== );
+  }
+  const primeiroNome = primeiroNaoVazio(nameList);
+
+  if (primeiroNome && primeiroNome.includes(@)) {
+    return { emailList nameList, nameList emailList };
+  } else {
+    return { nameList nameList, emailList emailList };
+  }
+}
+
+const { emailList, nameList } = identificarListas(lista1, lista2);
+const listavar = variaveis[1];
+const PastaID = listavar[0].split('').pop();
+const titemail = listavar[1];
+const textemail = listavar[2];
+const docname = listavar[3];
+
+function verificarArroba(texto) {
+  if (texto.includes(@)) {
+    return texto;
+  } else {
+    return ;
+  }
+}
+
+const copia = verificarArroba(listavar[4]);
+const responder = verificarArroba(listavar[5]);
+
+const folder = DriveApp.getFolderById(PastaID);
+
+
+
+function substituirTextoPorPosicao(texto) {
+  const titulos = cabecalho[0];
+  const resultados = [];
+
+  function obterSaudacao() {
+    const horaAtual = new Date().getHours();
+    if (horaAtual  12) {
+      return bom dia;
+    } else if (horaAtual  18) {
+      return boa tarde;
+    } else {
+      return boa noite;
+    }
+  }
+
+  for (let i = 1; i  cabecalho.length; i++) {
+    let textoSubstituido = texto;
+    const linha = cabecalho[i];
+
+    textoSubstituido = textoSubstituido.replace(##(.)##g, (match, p1) = {
+      if (p1 === saudacao) {
+        return obterSaudacao();
+      }
+      const indice = titulos.indexOf(p1);
+      return indice !== -1  linha[indice]  match;
+    });
+
+    resultados.push(textoSubstituido);
+  }
+
+  return resultados;
+}
+
+ Obtem um dicionário com nome e conteúdo de documentos da pasta
+function obterConteudoDocumentosGoogleDocs() {
+  const documentos = {};
+  const files = folder.getFilesByType(MimeType.GOOGLE_DOCS);
+
+   Lê cada arquivo do tipo Google Docs e armazena seu conteúdo
+  while (files.hasNext()) {
+    const file = files.next();
+    const doc = DocumentApp.openById(file.getId());
+    const content = doc.getBody().getText();  Pega o texto do corpo do documento
+    documentos[file.getName()] = content;  Adiciona o nome e conteúdo no dicionário
+  }
+
+  return documentos;
+}
+
+ Converte um documento (mantendo o original) para PDF na pasta, se o PDF já não existir
+function criarPdfSeNaoExistir(nomeDocumento, nomePdf) {
+   Verifica se o PDF já existe na pasta
+  const files = folder.getFiles();
+  let pdfExiste = false;
+
+  while (files.hasNext()) {
+    const file = files.next();
+    if (file.getName() === nomePdf && file.getMimeType() === MimeType.PDF) {
+      pdfExiste = true;
+      break;
+    }
+  }
+
+  if (pdfExiste) {
+     Logger.log(`O arquivo PDF ${nomePdf} já existe na pasta.`);
+    return;  Não faz nada se o PDF já existir
+  }
+
+   Obtém o documento Google Docs pelo nome
+  const documentFiles = folder.getFilesByName(nomeDocumento);
+  if (!documentFiles.hasNext()) {
+    Logger.log(`Erro O documento ${nomeDocumento} não foi encontrado na pasta.`);
+    return;  Interrompe se o documento não for encontrado
+  }
+
+  const file = documentFiles.next();
+
+   Verifica se o arquivo é do tipo Google Docs
+  if (file.getMimeType() !== MimeType.GOOGLE_DOCS) {
+    Logger.log(`Erro O arquivo ${nomeDocumento} não é um documento Google Docs.`);
+    return;  Interrompe se o arquivo não for do tipo esperado
+  }
+
+  try {
+     Abre o documento e converte para PDF
+    const doc = DocumentApp.openById(file.getId());
+    const pdfBlob = doc.getAs(MimeType.PDF);
+    pdfBlob.setName(nomePdf);  Define o nome do PDF
+
+     Cria o PDF na pasta
+    folder.createFile(pdfBlob);
+    Logger.log(`PDF ${nomePdf} criado com sucesso na pasta.`);
+  } catch (e) {
+    Logger.log(`Erro ao criar o PDF ${e.message}`);
+  }
+}
+
+function gerarCertificadosPersonalizados() {
+  const documentos = obterConteudoDocumentosGoogleDocs();  Obtém o dicionário de documentos e seus conteúdos
+  const resultados = {};  Dicionário para armazenar os PDFs gerados para cada pessoa
+
+   Itera sobre a lista de nomes
+  nameList.forEach((nome, idx) = {
+    resultados[nome] = [];  Inicializa a lista de PDFs para cada nome
+
+    const documentosAssociados = [];  Armazena os documentos encontrados para a pessoa
+
+     Verifica os documentos que contêm o nome da pessoa
+    for (const [documentoNome, conteudo] of Object.entries(documentos)) {
+      if (conteudo.toLowerCase().includes(nome.toLowerCase())) {  Busca case-insensitive
+        documentosAssociados.push(documentoNome);  Armazena o nome do documento
+      }
+    }
+
+    Logger.log(`Processando para o nome ${nome}`);  Log do nome em processamento
+    Logger.log(`Documentos encontrados para ${nome} ${documentosAssociados}`);  Log dos documentos encontrados
+
+     Cria os PDFs com nome baseado em substituirTextoPorPosicao e numeração condicional
+    if (documentosAssociados.length === 1) {
+       Se houver apenas um documento, cria o PDF com nome gerado por substituirTextoPorPosicao
+      const nomePdf = substituirTextoPorPosicao(docname)[idx];
+      Logger.log(`Gerando PDF com o nome ${nomePdf}`);  Log para verificar o nome do PDF
+      criarPdfSeNaoExistir(documentosAssociados[0], nomePdf);  Passa o nome correto
+      resultados[nome].push(nomePdf);  Adiciona o nome do PDF gerado à lista de resultados
+    } else {
+       Se houver mais de um documento, cria os PDFs com numeração, mantendo a função substituirTextoPorPosicao
+      documentosAssociados.forEach((documentoNome, documentoIdx) = {
+        const nomePdf = `${substituirTextoPorPosicao(docname)[idx]}_${documentoIdx + 1}.pdf`;  Nome com numeração
+        Logger.log(`Gerando PDF com o nome ${nomePdf}`);  Log para verificar o nome do PDF
+        criarPdfSeNaoExistir(documentoNome, nomePdf);  Passa o nome correto
+        resultados[nome].push(nomePdf);  Adiciona o nome do PDF gerado à lista de resultados
+      });
+    }
+  });
+  Utilities.sleep(10000);
+  return resultados;  Retorna o dicionário com os PDFs gerados para cada nome
+}
+
+
+function enviarEmailsComCertificados() {
+  console.time(Execução);  Marca o início com um rótulo
+  resultados = gerarCertificadosPersonalizados();
+   Para cada nome e índice na lista de nomes
+  nameList.forEach((nome, idx) = {
+    const email = emailList[idx];  Email correspondente ao nome no índice
+
+     Obtém os arquivos PDF associados ao nome no dicionário de resultados
+    const arquivosPdf = resultados[nome];
+     Se houver PDFs para o nome, prepara o email com anexos
+    if (arquivosPdf && arquivosPdf.length  0) {
+      const anexos = arquivosPdf.map(pdfNome = {
+        const arquivo = folder.getFilesByName(pdfNome);
+        if (arquivo.hasNext()) {
+          return arquivo.next().getAs(MimeType.PDF);  Obtém o PDF como blob para anexar
+        }
+      }).filter(anexo = anexo);  Remove anexos inválidosnulos
+
+       Envia o email com os anexos
+      sendEmail(email, anexos, idx+2)
+    } else { 
+      pagina1.getRange(idx+2, 3).setValue('Erro O usuário não possui arquivos em seu nome.');
+    }  
+  });
+    
+  for (let i = 0; i  1e6; i++) {
+    Math.sqrt(i);
+  }
+
+  console.timeEnd(Execução);  Exibe o tempo de execução
+}
+
+function sendEmail(email, anexos, idx) {
+  if (status[idx -2] && status[idx - 2].startsWith('E-mail enviado para')) {
+    pagina1.getRange(idx, 3).setValue('E-mail já enviado anteriormente');
+    return;
+  } else if (status[idx - 2] === 'E-mail já enviado anteriormente') {
+    return;
+  }
+
+  if (!email) {
+    console.log(Erro O e-mail do destinatário não foi especificado.);
+    pagina1.getRange(idx, 3).setValue('O e-mail do destinatário não foi especificado.');
+    return;
+  }
+
+if (anexos.lenght === 0){
+    pagina1.getRange(idx, 3).setValue('Ocorreu um erro e o e-mail não foi enviado. Por favor, tente novamente.');
+  return;
+  } else {
+  var corpoEmailList = substituirTextoPorPosicao(textemail);
+  var corpoEmail = corpoEmailList[idx - 2];
+  MailApp.sendEmail({
+    to email,
+    cc copia,
+    replyTo responder,
+    subject titemail,
+    body corpoEmail,
+    attachments anexos
+  });
+
+  pagina1.getRange(idx, 3).setValue(E-mail enviado para  + email +  com  + anexos.length +  arquivo(s) em anexo.);
+  }
+}
+
+function confirmEmail() {
+  var response = Browser.msgBox('Confirmação', 'Você realmente deseja enviar os emails', Browser.Buttons.YES_NO);
+  if (response == 'no') {
+    Browser.msgBox('Envio de Emails Cancelado', 'Os emails não foram enviados.', Browser.Buttons.OK);
+    return;
+  }
+  enviarEmailsComCertificados();
+} 
